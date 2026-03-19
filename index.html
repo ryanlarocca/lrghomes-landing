@@ -16,6 +16,25 @@
     gtag('js', new Date());
     gtag('config', 'AW-11434036654');
   </script>
+
+  <!-- Facebook Pixel -->
+  <!-- TODO: Replace FACEBOOK_PIXEL_ID below with Ryan's actual Facebook Pixel ID -->
+  <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.queue=[];n.version='2.0';
+    n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', 'FACEBOOK_PIXEL_ID');
+    fbq('track', 'PageView');
+  </script>
+  <noscript>
+    <img height="1" width="1" style="display:none"
+         src="https://www.facebook.com/tr?id=FACEBOOK_PIXEL_ID&ev=PageView&noscript=1" />
+  </noscript>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -776,6 +795,10 @@
           // Fire Google Ads conversion
           if (typeof gtag === 'function') {
             gtag('event', 'conversion', {'send_to': 'AW-11434036654/j2ZECKrh_IYcEK6blswq'});
+          }
+          // Fire Facebook Pixel Lead event
+          if (typeof fbq === 'function') {
+            fbq('track', 'Lead');
           }
         } else {
           // Fallback to mailto
