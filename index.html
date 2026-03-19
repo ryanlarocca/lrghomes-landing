@@ -561,21 +561,26 @@
     </div>
     <div class="form-card" id="hero-form-card">
       <h2>Get Your Free Cash Offer</h2>
-      <form id="hero-form" action="https://api.web3forms.com/submit" method="POST">
-        <input type="hidden" name="access_key" value="8aad0d51-5484-4acc-b60a-b815d66a227d">
-        <input type="hidden" name="subject" value="New Cash Offer Request — LRG Homes">
-        <input type="checkbox" name="botcheck" style="display:none">
+      <form id="hero-form">
         <div class="form-group">
           <label for="hero-name">Your Name</label>
-          <input type="text" id="hero-name" name="name" placeholder="John Smith" required />
+          <input type="text" id="hero-name" name="fullName" placeholder="John Smith" required />
         </div>
         <div class="form-group">
           <label for="hero-phone">Phone Number</label>
           <input type="tel" id="hero-phone" name="phone" placeholder="(408) 555-0100" required />
         </div>
         <div class="form-group">
+          <label for="hero-email">Email</label>
+          <input type="email" id="hero-email" name="email" placeholder="john@example.com" />
+        </div>
+        <div class="form-group">
           <label for="hero-address">Property Address</label>
-          <input type="text" id="hero-address" name="address" placeholder="123 Main St, San Jose, CA" required />
+          <input type="text" id="hero-address" name="propertyAddress" placeholder="123 Main St, San Jose, CA" />
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-start;gap:10px;width:100%;box-sizing:border-box;">
+          <input type="checkbox" id="hero-consent" name="consent" required style="margin-top:3px;flex-shrink:0;width:16px;height:16px;" />
+          <label for="hero-consent" style="font-size:0.78rem;color:#6b7280;text-transform:none;letter-spacing:0;font-weight:400;line-height:1.5;word-wrap:break-word;min-width:0;">I agree to receive SMS messages from LRG Homes. Msg &amp; data rates may apply. Reply STOP to opt out. <a href="/privacy-policy.html" target="_blank">Privacy Policy</a> | <a href="/terms.html" target="_blank">Terms</a></label>
         </div>
         <button type="submit" class="btn-cta">Get My Cash Offer →</button>
         <p class="form-note">🔒 100% free &amp; no obligation. We'll call you within 24 hours.</p>
@@ -730,21 +735,26 @@
   <p>No repairs. No fees. Close when you're ready.</p>
   <div class="form-card" id="bottom-form-card">
     <h2>Get Your Free Cash Offer</h2>
-    <form id="bottom-form" action="https://api.web3forms.com/submit" method="POST">
-      <input type="hidden" name="access_key" value="8aad0d51-5484-4acc-b60a-b815d66a227d">
-      <input type="hidden" name="subject" value="New Cash Offer Request — LRG Homes">
-      <input type="checkbox" name="botcheck" style="display:none">
+    <form id="bottom-form">
       <div class="form-group">
         <label for="bottom-name">Your Name</label>
-        <input type="text" id="bottom-name" name="name" placeholder="John Smith" required />
+        <input type="text" id="bottom-name" name="fullName" placeholder="John Smith" required />
       </div>
       <div class="form-group">
         <label for="bottom-phone">Phone Number</label>
         <input type="tel" id="bottom-phone" name="phone" placeholder="(408) 555-0100" required />
       </div>
       <div class="form-group">
+        <label for="bottom-email">Email</label>
+        <input type="email" id="bottom-email" name="email" placeholder="john@example.com" />
+      </div>
+      <div class="form-group">
         <label for="bottom-address">Property Address</label>
-        <input type="text" id="bottom-address" name="address" placeholder="123 Main St, San Jose, CA" required />
+        <input type="text" id="bottom-address" name="propertyAddress" placeholder="123 Main St, San Jose, CA" />
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-start;gap:10px;width:100%;box-sizing:border-box;">
+        <input type="checkbox" id="bottom-consent" name="consent" required style="margin-top:3px;flex-shrink:0;width:16px;height:16px;" />
+        <label for="bottom-consent" style="font-size:0.78rem;color:#6b7280;text-transform:none;letter-spacing:0;font-weight:400;line-height:1.5;word-wrap:break-word;min-width:0;">I agree to receive SMS messages from LRG Homes. Msg &amp; data rates may apply. Reply STOP to opt out. <a href="/privacy-policy.html" target="_blank">Privacy Policy</a> | <a href="/terms.html" target="_blank">Terms</a></label>
       </div>
       <button type="submit" class="btn-cta">Get My Cash Offer →</button>
       <p class="form-note">🔒 100% free &amp; no obligation. We'll call you within 24 hours.</p>
@@ -768,7 +778,7 @@
 </footer>
 
 <script>
-  // Handle Formspree AJAX submissions with thank-you message
+  // Handle lead form submissions via /api/submit-lead
   function setupForm(formId, thanksId) {
     const form = document.getElementById(formId);
     const thanks = document.getElementById(thanksId);
@@ -776,7 +786,7 @@
 
     form.addEventListener('submit', async function(e) {
       e.preventDefault();
-      const data = new FormData(form);
+      const formData = Object.fromEntries(new FormData(form));
       const btn = form.querySelector('.btn-cta');
       btn.textContent = 'Sending…';
       btn.disabled = true;
@@ -793,21 +803,19 @@
       }
 
       try {
-        const res = await fetch(form.action, {
+        const res = await fetch('/api/submit-lead', {
           method: 'POST',
-          body: data,
-          headers: { 'Accept': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
         });
 
         if (res.ok) {
           form.style.display = 'none';
           thanks.style.display = 'block';
         } else {
-          // Fallback to mailto
-          const name = data.get('name') || '';
-          const phone = data.get('phone') || '';
-          const address = data.get('address') || '';
-          window.location.href = `mailto:info@lrghomes.com?subject=Cash Offer Request&body=Name: ${encodeURIComponent(name)}%0APhone: ${encodeURIComponent(phone)}%0AAddress: ${encodeURIComponent(address)}`;
+          btn.textContent = 'Get My Cash Offer →';
+          btn.disabled = false;
+          alert('Something went wrong. Please call us at (408) 493-0632.');
         }
       } catch (err) {
         btn.textContent = 'Get My Cash Offer →';
