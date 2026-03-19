@@ -781,6 +781,14 @@
       btn.textContent = 'Sending…';
       btn.disabled = true;
 
+      // Fire conversion events immediately on submit (before async fetch)
+      if (typeof gtag === 'function') {
+        gtag('event', 'conversion', {'send_to': 'AW-11434036654/j2ZECKrh_IYcEK6blswq'});
+      }
+      if (typeof fbq === 'function') {
+        fbq('track', 'Lead');
+      }
+
       try {
         const res = await fetch(form.action, {
           method: 'POST',
@@ -791,14 +799,6 @@
         if (res.ok) {
           form.style.display = 'none';
           thanks.style.display = 'block';
-          // Fire Google Ads conversion
-          if (typeof gtag === 'function') {
-            gtag('event', 'conversion', {'send_to': 'AW-11434036654/j2ZECKrh_IYcEK6blswq'});
-          }
-          // Fire Facebook Pixel Lead event
-          if (typeof fbq === 'function') {
-            fbq('track', 'Lead');
-          }
         } else {
           // Fallback to mailto
           const name = data.get('name') || '';
