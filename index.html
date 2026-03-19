@@ -785,8 +785,11 @@
       if (typeof gtag === 'function') {
         gtag('event', 'conversion', {'send_to': 'AW-11434036654/j2ZECKrh_IYcEK6blswq'});
       }
-      if (typeof fbq === 'function') {
-        fbq('track', 'Lead');
+      // Call fbq directly without a strict function check — the pixel snippet stubs fbq
+      // synchronously, so window.fbq exists even if fbevents.js hasn't finished loading.
+      // Using window.fbq avoids any scoping edge cases.
+      if (window.fbq) {
+        window.fbq('track', 'Lead');
       }
 
       try {
