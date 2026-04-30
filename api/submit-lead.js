@@ -124,6 +124,78 @@ async function sendEmail({ to, subject, textBody }) {
   }
 }
 
+// ─── Supabase (LRG Homes leads table) ─────────────────────────────────────────
+
+async function logToSupabase({ fullName, email, phone, address }) {
+  const url = process.env.LRG_SUPABASE_URL;
+  const key = process.env.LRG_SUPABASE_SERVICE_KEY;
+  if (!url || !key) {
+    console.warn('[submit-lead] Supabase credentials missing — skipping');
+    return false;
+  }
+
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) {
+    console.warn(`[submit-lead] Invalid phone for Supabase: ${phone}`);
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${url}/rest/v1/leads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        name: fullName || null,
+        email: email || null,
+        caller_phone: normalizedPhone,
+        property_address: address || null,
+        source: 'Google Ads',
+        source_type: 'google_ads',
+        lead_type: 'form',
+        status: 'new',
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[submit-lead] Supabase insert failed ${response.status}: ${errText}`);
+      return false;
+    }
+    console.log('[submit-lead] Lead logged to Supabase');
+    return true;
+  } catch (err) {
+    console.error('[submit-lead] Supabase error:', err.message);
+    return false;
+  }
+}
+
+// ─── Telegram alert (best-effort, fire-and-forget) ────────────────────────────
+
+function sendTelegramAlert({ fullName, email, phone, address }) {
+  const token  = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+
+  const text = [
+    `📋 New Google Ads lead`,
+    `<b>${fullName || '(no name)'}</b>`,
+    `📞 ${phone || '(no phone)'}`,
+    `🏠 ${address || '(no address)'}`,
+    `📧 ${email || '(no email)'}`,
+  ].join('\n');
+
+  fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+  }).catch((err) => console.error('[submit-lead] Telegram alert error:', err.message));
+}
+
 // ─── Google Sheets API (OAuth2) ───────────────────────────────────────────────
 
 async function logToSheets({ timestamp, fullName, email, phone, address, propertyType }) {
@@ -272,15 +344,30 @@ module.exports = async function handler(req, res) {
     return false;
   });
 
+  // ── 5. Supabase log (Google Ads → mission-control Leads tab) ──────────────
+  const supabaseLog = logToSupabase({
+    fullName,
+    email: cleanEmail,
+    phone: cleanPhone,
+    address: cleanAddress,
+  }).catch((err) => {
+    console.error('[submit-lead] Supabase log error:', err.message);
+    return false;
+  });
+
+  // ── 6. Telegram alert (fire-and-forget — don't block response) ────────────
+  sendTelegramAlert({ fullName, email: cleanEmail, phone: cleanPhone, address: cleanAddress });
+
   // Wait for all in parallel
-  const [sms, emailSent, sheets, smsLead] = await Promise.all([
+  const [sms, emailSent, sheets, smsLead, supabase] = await Promise.all([
     smsToRyan,
     emailToLead,
     sheetsLog,
     smsToLead,
+    supabaseLog,
   ]);
 
-  const results = { sms, email: emailSent, sheets, smsLead };
+  const results = { sms, email: emailSent, sheets, smsLead, supabase };
   console.log(`[submit-lead] ${timestamp} — Results:`, results);
 
   return res.status(200).json({
