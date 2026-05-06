@@ -158,6 +158,12 @@ async function logToSupabase({ fullName, email, phone, address }) {
         source_type: 'google_ads',
         lead_type: 'form',
         status: 'new',
+        // Phase 7B: stamp drip campaign on intake. Touch 0 (immediate
+        // confirmation email + SMS to lead) fires below in the same
+        // request, so the engine starts at touch 1 (30h after now).
+        drip_campaign_type: 'google_ads_form',
+        drip_touch_number: 0,
+        last_drip_sent_at: new Date().toISOString(),
       }),
     });
 
