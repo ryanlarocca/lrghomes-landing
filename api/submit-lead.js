@@ -126,7 +126,7 @@ async function sendEmail({ to, subject, textBody }) {
 
 // ─── Supabase (LRG Homes leads table) ─────────────────────────────────────────
 
-async function logToSupabase({ fullName, email, phone, address }) {
+async function logToSupabase({ fullName, email, phone, address, smsConsent }) {
   const url = process.env.LRG_SUPABASE_URL;
   const key = process.env.LRG_SUPABASE_SERVICE_KEY;
   if (!url || !key) {
@@ -141,6 +141,21 @@ async function logToSupabase({ fullName, email, phone, address }) {
   }
 
   try {
+    // Drip enrollment is gated on SMS consent. The drip engine sends outbound
+    // SMS at touches 1+ — enrolling a non-consenting lead would violate A2P.
+    // Non-consenting leads are still tracked, emailed, and notified to Ryan;
+    // they just don't get automated SMS follow-ups.
+    const dripFields = smsConsent
+      ? {
+          drip_campaign_type: 'google_ads_form',
+          drip_touch_number: 0,
+          last_drip_sent_at: new Date().toISOString(),
+        }
+      : {};
+    const notes = smsConsent
+      ? null
+      : 'SMS opt-in declined at intake — do not auto-text. OK to call/email.';
+
     const response = await fetch(`${url}/rest/v1/leads`, {
       method: 'POST',
       headers: {
@@ -158,12 +173,8 @@ async function logToSupabase({ fullName, email, phone, address }) {
         source_type: 'google_ads',
         lead_type: 'form',
         status: 'new',
-        // Phase 7B: stamp drip campaign on intake. Touch 0 (immediate
-        // confirmation email + SMS to lead) fires below in the same
-        // request, so the engine starts at touch 1 (30h after now).
-        drip_campaign_type: 'google_ads_form',
-        drip_touch_number: 0,
-        last_drip_sent_at: new Date().toISOString(),
+        notes,
+        ...dripFields,
       }),
     });
 
@@ -255,7 +266,10 @@ module.exports = async function handler(req, res) {
   const body = req.body || {};
 
   const fullName = (body.fullName || `${body.firstName || ''} ${body.lastName || ''}`.trim()).trim();
-  const { email, phone, propertyAddress, address, propertyType } = body;
+  const { email, phone, propertyAddress, address, propertyType, consent } = body;
+  // Consent gates outbound SMS to the lead. Truthy = checkbox was checked.
+  // Form-data checkboxes serialize as 'on', JSON submissions may send true.
+  const smsConsent = consent === true || consent === 'on' || consent === 'true' || consent === '1';
   const cleanAddress = (propertyAddress || address || '').trim();
   const timestamp = new Date().toISOString();
 
@@ -279,9 +293,10 @@ module.exports = async function handler(req, res) {
   const firstName = fullName.split(' ')[0];
 
   // ── 0. Fire Mac mini for AppleScript SMS (temp until Twilio A2P approved) ──
+  // Gated on SMS consent — A2P requires explicit opt-in for outbound messaging.
   const macMiniUrl = process.env.MAC_MINI_LEAD_WEBHOOK_URL;
   const macSecret = process.env.MAC_MINI_WEBHOOK_SECRET;
-  if (macMiniUrl) {
+  if (macMiniUrl && smsConsent) {
     fetch(`${macMiniUrl}/lead`, {
       method: 'POST',
       headers: {
@@ -342,13 +357,16 @@ module.exports = async function handler(req, res) {
   });
 
   // ── 4. SMS to lead ──────────────────────────────────────────────────────────
-  const smsToLead = sendSms(
-    cleanPhone,
-    `Hey ${firstName}, thanks for reaching out to LRG Homes! We're taking a look at your property and will be in touch shortly. In the meantime, when are you planning to make the move? \u2014 Ryan +1 (408) 493-0632`
-  ).catch((err) => {
-    console.error('[submit-lead] SMS to lead error:', err.message);
-    return false;
-  });
+  // Gated on SMS consent \u2014 only message leads who explicitly checked the box.
+  const smsToLead = smsConsent
+    ? sendSms(
+        cleanPhone,
+        `Hi ${firstName}, this is Ryan with LRG Homes \u2014 thanks for reaching out about your property. We'll be in touch shortly with next steps. When are you hoping to make the move? Reply STOP to opt out. \u2014 Ryan, +1 (650) 670-3914`
+      ).catch((err) => {
+        console.error('[submit-lead] SMS to lead error:', err.message);
+        return false;
+      })
+    : Promise.resolve('skipped:no-consent');
 
   // ── 5. Supabase log (Google Ads → mission-control Leads tab) ──────────────
   const supabaseLog = logToSupabase({
@@ -356,6 +374,7 @@ module.exports = async function handler(req, res) {
     email: cleanEmail,
     phone: cleanPhone,
     address: cleanAddress,
+    smsConsent,
   }).catch((err) => {
     console.error('[submit-lead] Supabase log error:', err.message);
     return false;
